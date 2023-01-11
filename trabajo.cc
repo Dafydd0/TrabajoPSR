@@ -62,11 +62,11 @@ main (int argc, char *argv[])
   
   CommandLine cmd;
   int nFuentes = 6; // Número de Fuentes
-  int tam_pkt = 1024; // Tamaño del Paquete
-  Time stop_time ("20s"); // Tiempo de parada para las fuentes
+  int tam_pkt = 118; // Tamaño del Paquete
+  Time stop_time ("120s"); // Tiempo de parada para las fuentes
   DataRate cap_tx ("100000kb/s"); // Capacidad de transmisión (100Mb/s)
-  Time tSim ("20s"); // Tiempo de Simulación
-  double intervalo = 0.001; // Intervalo entre paquetes
+  Time tSim ("120s"); // Tiempo de Simulación
+  double intervalo = 0.060; // Intervalo entre paquetes
 
   std::string tam_cola = "1p"; // Tamaño de  la cola
   
@@ -162,10 +162,15 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
   h_onoff.SetAttribute ("OnTime", StringValue ("ns3::ExponentialRandomVariable[Mean=0.35]")); //Se establece el atributo OnTime a 0.35
   h_onoff.SetAttribute ("OffTime", StringValue ("ns3::ExponentialRandomVariable[Mean=0.65]")); //Se establece el atributo Offtime a 0.65
-  h_onoff.SetAttribute ("DataRate", StringValue ("64kbps")); //Se establece el regimen binario a 64kbps
+  //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
+  h_onoff.SetAttribute ("DataRate", StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
   h_onoff.SetAttribute ("StopTime", TimeValue (stop_time)); //Se establece el tiempo de parada
   NS_LOG_DEBUG("Atributos del objeto h_onoff modificados");
   
+  DataRate tasa_codec ("8kbps");
+
+ // h_onoff.SetConstantRate(tasa_codec, tam_paq); //Esto creo que tiene que ser así
+
   //IntegerValue reg_binFuente = tam_paq * 8 / intervalo;
   NS_LOG_INFO ("Tiempo entre paquetes: " << intervalo << "s");
   //NS_LOG_INFO ("Régimen binario de las fuentes: " << reg_binFuente.Get () << " bps");
@@ -238,7 +243,7 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   // Create the OnOff applications to send TCP to the server
   OnOffHelper clientHelperTcp ("ns3::TcpSocketFactory", Address ());
   clientHelperTcp.SetAttribute ("PacketSize", UintegerValue (tam_paq));
-  clientHelperTcp.SetAttribute ("OnTime", StringValue ("ns3::ExponentialRandomVariable[Mean=0.25]"));
+  clientHelperTcp.SetAttribute ("OnTime", StringValue ("ns3::ExponentialRandomVariable[Mean=0.35]"));
   clientHelperTcp.SetAttribute ("OffTime", StringValue ("ns3::ExponentialRandomVariable[Mean=0.85]"));
   clientHelperTcp.SetAttribute ("DataRate", StringValue ("64kbps")); //Se establece el regimen binario a 64kbps
 
@@ -246,10 +251,10 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
 
   AddressValue remoteAddress (InetSocketAddress (c_interfaces_admin.GetAddress (3), port));
   clientHelperTcp.SetAttribute ("Remote", remoteAddress);
-  clientApp.Add (clientHelperTcp.Install (c_todos_lan_admin.Get (1))); // Instala la fuente TCP en el nodo admin
+  //clientApp.Add (clientHelperTcp.Install (c_todos_lan_admin.Get (1))); // Instala la fuente TCP en el nodo admin
 
-  clientApp.Start (Seconds (1.0));
-  clientApp.Stop (stop_time);
+  //clientApp.Start (Seconds (1.0));
+  //clientApp.Stop (stop_time);
 
   Simulator::Stop (stop_time); //Falta un tiempo, si no la simulación no termina
   Simulator::Run ();
@@ -259,7 +264,7 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   NS_LOG_INFO ("Paquetes perdidos en la cola: " << paquetesPerdidos);
 
 
-  for (uint32_t i = 0; i < nodos; i++)
+  for (int i = 0; i < nodos; i++)
     {
       Ptr<Queue<Packet>> cola_aux = bridge->GetDevice (i)
                                         ->GetObject<CsmaNetDevice> ()
