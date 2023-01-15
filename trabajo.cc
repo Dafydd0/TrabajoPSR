@@ -45,6 +45,8 @@
 #include "ns3/udp-header.h"
 #include "ns3/ppp-header.h"
 #include "ns3/wimax-mac-header.h"
+#include "ns3/packet-sink.h"
+#include "retardo.h"
 
 using namespace ns3;
 
@@ -179,10 +181,14 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   //CREACIÓN DE LA LAN 1
   ////////////////////////////////////////////////////
 
-  NS_LOG_INFO ("Hay [" << nodos << "] Fuentes");
+  NodeContainer c_lan1_fuentes;
+  c_lan1_fuentes.Create (nodos);
+
   NodeContainer c_lan1;
-  c_lan1.Create (nodos);
   c_lan1.Add (r0r1.Get (0));
+  c_lan1.Add (c_lan1_fuentes); //Hacemos esto para que el nodo 0 sea el router
+
+  NS_LOG_INFO ("Hay [" << c_lan1.GetN () << "] nodos en la LAN 1");
 
   NetDeviceContainer c_lan1_router_fuentes;
 
@@ -203,10 +209,14 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   //CREACIÓN DE LA LAN 2
   ////////////////////////////////////////////////////
 
-  NS_LOG_INFO ("Hay [" << nodos << "] Fuentes");
+  NodeContainer c_lan2_fuentes;
+  c_lan2_fuentes.Create (nodos);
+
   NodeContainer c_lan2;
-  c_lan2.Create (nodos);
   c_lan2.Add (r0r1.Get (1));
+  c_lan2.Add (c_lan2_fuentes); //Hacemos esto para que el nodo 0 sea el router
+
+  NS_LOG_INFO ("Hay [" << c_lan2.GetN () << "] nodos en la LAN 2");
 
   NetDeviceContainer c_lan2_router_fuentes;
 
@@ -227,14 +237,18 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   //CREACIÓN DE LA LAN 3
   ////////////////////////////////////////////////////
 
+  NodeContainer c_lan3_temp;
+  c_lan3_temp.Create (3);
+
   NodeContainer c_lan3;
-  c_lan3.Create (3);
-  c_lan3.Add (r1r2.Get (1)); //4 nodos
+  c_lan3.Add (r1r2.Get (1));
+  c_lan3.Add (c_lan3_temp); //Hacemos esto para que el nodo 0 sea el router
+
   NS_LOG_INFO ("Hay [" << c_lan3.GetN () << "] nodos en la LAN 3");
 
   NetDeviceContainer c_lan3_router_otros;
 
-  NS_LOG_DEBUG ("Creando puente de la LAN 2...");
+  NS_LOG_DEBUG ("Creando puente de la LAN 3...");
   Ptr<Node> bridge_lan3 = PuenteHelper (c_lan3, c_lan3_router_otros, capacidad);
 
   //Cambiamos MTU para no tener que fragmentar
@@ -243,12 +257,26 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
       c_lan3_router_otros.Get (i)->GetObject<CsmaNetDevice> ()->SetMtu (10000);
     }
 
+  // 0 -> router
+  // 1 -> admin
+  // 2 -> server UDP
+  // 3 -> DB
+
+  //Creamos y añadimos el servidor UDP al nodo 2
   NS_LOG_DEBUG ("Creando UdpServer...");
   Ptr<UdpServer> udpServer = CreateObject<UdpServer> ();
-  c_lan3.Get (2)->AddApplication (udpServer); //0 - 1 - Servidor UDP -> 2 - 3
+  c_lan3.Get (2)->AddApplication (udpServer);
 
-  UintegerValue puerto;
-  udpServer->GetAttribute ("Port", puerto);
+  UintegerValue puerto_udp;
+  udpServer->GetAttribute ("Port", puerto_udp);
+
+  //Creamos el server TCP (Es la base de datos)
+  uint16_t puerto_tcp = 50000;
+  Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), puerto_tcp));
+  PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
+  ApplicationContainer sinkApp = sinkHelper.Install (c_lan3.Get (3)); //El 3 es la base de datos
+  sinkApp.Start (Seconds (1.0));
+  sinkApp.Stop (stop_time);
 
   ////////////////////////////////////////////////////
   //FIN CREACIÓN DE LA LAN 3
@@ -300,11 +328,11 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   ////////////////////////////////////////////////////
 
   ////////////////////////////////////////////////////
-  //CREACIÓN DE LAS FUENTES ONOFF
+  //CREACIÓN DE LAS FUENTES ONOFF UDP
   ////////////////////////////////////////////////////
-  OnOffHelper h_onoff (
-      "ns3::UdpSocketFactory",
-      InetSocketAddress (interfaces_lan3.GetAddress (2), puerto.Get ())); //El 2 es el Servidor UDP
+  OnOffHelper h_onoff ("ns3::UdpSocketFactory",
+                       InetSocketAddress (interfaces_lan3.GetAddress (2),
+                                          puerto_udp.Get ())); //El 2 es el Servidor UDP
   h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
   h_onoff.SetAttribute (
       "OnTime",
@@ -323,18 +351,16 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   DataRate tasa_codec ("8kbps");
   // h_onoff.SetConstantRate(tasa_codec, tam_paq); //Esto creo que tiene que ser así
 
-  ApplicationContainer c_app_lan1 = h_onoff.Install (
-      c_lan1); //Tambien le estoy instalando la fuente al router, tengo que cambiarlo
+  ApplicationContainer c_app_lan1 = h_onoff.Install (c_lan1_fuentes);
 
-  for (uint32_t i = 0; i < c_lan1_router_fuentes.GetN (); i++)
+  for (uint32_t i = 1; i < c_lan1_fuentes.GetN (); i++) // Se empieza en 1, ya que el 0 es el router
     {
       c_app_lan1.Get (i)->SetStopTime (stop_time);
     }
 
-  ApplicationContainer c_app_lan2 = h_onoff.Install (
-      c_lan2); //Tambien le estoy instalando la fuente al router, tengo que cambiarlo
+  ApplicationContainer c_app_lan2 = h_onoff.Install (c_lan2_fuentes);
 
-  for (uint32_t i = 0; i < c_lan2_router_fuentes.GetN (); i++)
+  for (uint32_t i = 1; i < c_lan2_fuentes.GetN (); i++) // Se empieza en 1, ya que el 0 es el router
     {
       c_app_lan2.Get (i)->SetStopTime (stop_time);
     }
@@ -344,10 +370,35 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   //NS_LOG_INFO ("Régimen binario de las fuentes: " << reg_binFuente.Get () << " bps");
 
   ////////////////////////////////////////////////////
-  //FIN CREACIÓN DE LAS FUENTES ONOFF
+  //FIN CREACIÓN DE LAS FUENTES ONOFF UDP
   ////////////////////////////////////////////////////
 
-  //NS_LOG_INFO ("Hay [" << bridge->GetNDevices () << "] dispositivos");
+  ////////////////////////////////////////////////////
+  //CREACIÓN DE LA FUENTE ONOFF TCP
+  ////////////////////////////////////////////////////
+
+  OnOffHelper clientHelperTcp ("ns3::TcpSocketFactory", Address ());
+  clientHelperTcp.SetAttribute ("PacketSize", UintegerValue (tam_paq));
+  clientHelperTcp.SetAttribute ("OnTime",
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.35]"));
+  clientHelperTcp.SetAttribute ("OffTime",
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.85]"));
+  clientHelperTcp.SetAttribute ("DataRate",
+                                StringValue ("64kbps")); //Se establece el regimen binario a 64kbps
+
+  ApplicationContainer clientApp; // Nodo admin
+
+  AddressValue remoteAddress (InetSocketAddress (interfaces_lan3.GetAddress (3), puerto_tcp));
+  clientHelperTcp.SetAttribute ("Remote", remoteAddress);
+  clientApp.Add (
+      clientHelperTcp.Install (c_lan3.Get (1))); // Instala la fuente TCP en el nodo admin
+
+  //clientApp.Start (Seconds (1.0));
+  clientApp.Stop (stop_time);
+
+  ////////////////////////////////////////////////////
+  //FIN CREACIÓN DE LA FUENTE ONOFF TCP
+  ////////////////////////////////////////////////////
 
   // Ptr<DropTailQueue<Packet>> cola_DP_lan1 = bridge_lan1->GetDevice (0)
   //                                               ->GetObject<CsmaNetDevice> ()
@@ -375,84 +426,13 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   //     "Tamaño de la cola del puerto del switch conectado al servidor: " << tam_cola.Get ());
   // NS_LOG_INFO ("[Arranca la simulación] tiempo de simulación: " << t_sim.GetSeconds () << " s");
 
-  // NS_LOG_DEBUG ("Creando objeto_retardo...");
-  //Retardo objeto_retardo = Retardo (c_dispositivos.Get (0), c_dispositivos.Get (1));
+  NS_LOG_DEBUG ("Creando objeto_retardo...");
+  Ptr<NetDevice> nodo_transmisor =
+      c_lan1.Get (3)->GetDevice (0); //El emisor será el nodo 3 de la LAN 1 por ejemplo
+  Ptr<NetDevice> nodo_receptor =
+      c_lan3.Get (2)->GetDevice (0); //El receptor será el servidor UDP de la LAN 3
 
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-  //CREACION LAN ADMIN-DDBB
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////
-
-  // NodeContainer nodos_lan_admin;
-  // NodeContainer db_node;
-  // nodos_lan_admin.Create (2);
-  // db_node.Create (1);
-  // NodeContainer allNodesTemp =
-  //     NodeContainer (nodos_lan_admin, db_node); // 0 -> admin   1 -> server UDP   2 -> DB
-  // Ptr<Node> n_router = CreateObject<Node> ();
-  // NodeContainer c_todos_lan_admin (n_router);
-  // c_todos_lan_admin.Add (allNodesTemp);
-
-  // NS_LOG_DEBUG ("Creando UdpServer...");
-  // Ptr<UdpServer> udpserver_admin = CreateObject<UdpServer> ();
-  // c_todos_lan_admin.Get (2)->AddApplication (udpserver_admin);
-
-  // UintegerValue puerto_lan_admin;
-  // udpserver_admin->GetAttribute ("Port", puerto_lan_admin);
-
-  // // 0 -> DB
-  // // 1 -> admin
-  // // 2 -> server UDP
-  // // 3 -> router
-
-  // h_pila.Install (c_todos_lan_admin);
-
-  // NetDeviceContainer c_dispositivos_lan_admin;
-  // NS_LOG_DEBUG ("Creando puente LAN ADMIN...");
-  // Ptr<Node> bridge_lan_admin =
-  //     PuenteHelper (c_todos_lan_admin, c_dispositivos_lan_admin, capacidad);
-
-  // //Cambiamos MTU para no tener que fragmentar
-  // for (uint32_t i = 0; i < c_dispositivos_lan_admin.GetN (); i++)
-  //   {
-  //     c_dispositivos_lan_admin.Get (i)->GetObject<CsmaNetDevice> ()->SetMtu (10000);
-  //   }
-
-  // Ipv4AddressHelper h_direcciones_admin ("10.20.20.0", "255.255.255.0");
-  // Ipv4InterfaceContainer c_interfaces_admin = h_direcciones_admin.Assign (c_dispositivos_lan_admin);
-  // NS_LOG_DEBUG ("Asignando direcciones IP...");
-
-  // //Creamos el server TCP (Es la base de datos)
-  // uint16_t port = 50000;
-  // Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
-  // PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
-  // ApplicationContainer sinkApp = sinkHelper.Install (db_node);
-  // sinkApp.Start (Seconds (1.0));
-  // sinkApp.Stop (stop_time);
-
-  // // Create the OnOff applications to send TCP to the server
-  // OnOffHelper clientHelperTcp ("ns3::TcpSocketFactory", Address ());
-  // clientHelperTcp.SetAttribute ("PacketSize", UintegerValue (tam_paq));
-  // clientHelperTcp.SetAttribute ("OnTime",
-  //                               StringValue ("ns3::ExponentialRandomVariable[Mean=0.35]"));
-  // clientHelperTcp.SetAttribute ("OffTime",
-  //                               StringValue ("ns3::ExponentialRandomVariable[Mean=0.85]"));
-  // clientHelperTcp.SetAttribute ("DataRate",
-  //                               StringValue ("64kbps")); //Se establece el regimen binario a 64kbps
-
-  // ApplicationContainer clientApp; // Nodo admin
-
-  // AddressValue remoteAddress (InetSocketAddress (c_interfaces_admin.GetAddress (3), port));
-  // clientHelperTcp.SetAttribute ("Remote", remoteAddress);
-  // //clientApp.Add (clientHelperTcp.Install (c_todos_lan_admin.Get (1))); // Instala la fuente TCP en el nodo admin
-
-  // //clientApp.Start (Seconds (1.0));
-  // //clientApp.Stop (stop_time);
+  Retardo objeto_retardo = Retardo (nodo_transmisor, nodo_receptor);
 
   //Nos suscribimos a la traza para saber la dirección del emisor cuando recibimos algún paquete
   //udpserver->TraceConnectWithoutContext ("RxWithAddresses", MakeCallback (&PacketReceivedWithAddress)); //LAN fuentes
@@ -460,13 +440,14 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
       "Rx", MakeCallback (&PacketReceivedWithoutAddress)); //LAN fuentes
   //udpserver_admin->TraceConnectWithoutContext ("RxWithAddresses", MakeCallback (&PacketReceivedWithAddress)); //LAN admin
 
-  Simulator::Stop (stop_time); //Falta un tiempo, si no la simulación no termina
+  Simulator::Stop (stop_time);
   Simulator::Run ();
   NS_LOG_INFO ("--[Simulación completada]--");
 
   //  int paquetesPerdidos = cola_DP->GetTotalDroppedPackets ();
   //NS_LOG_INFO ("Paquetes perdidos en la cola: " << paquetesPerdidos);
-  NS_LOG_INFO ("LAN 1: " <<  c_lan1.GetN () << ", LAN 2: " <<  c_lan2.GetN () << ", LAN 3: " << c_lan3.GetN ());
+  NS_LOG_INFO ("LAN 1: " << c_lan1.GetN () << ", LAN 2: " << c_lan2.GetN ()
+                         << ", LAN 3: " << c_lan3.GetN ());
 
   for (uint32_t i = 0; i < c_lan1.GetN (); i++)
     {
@@ -479,8 +460,6 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
                    << i << "]: " << cola_aux->GetTotalReceivedPackets ());
     }
 
-  NS_LOG_INFO ("AAAAAAAAAAAAAAAAAAAAA");
-
   for (uint32_t i = 0; i < c_lan2.GetN (); i++)
     {
       Ptr<Queue<Packet>> cola_aux = bridge_lan2->GetDevice (i)
@@ -491,7 +470,6 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
       NS_LOG_INFO ("LAN 2: Paquetes RECIBIDOS en la cola del puerto ["
                    << i << "]: " << cola_aux->GetTotalReceivedPackets ());
     }
-  NS_LOG_INFO ("BBBBBBBBBBBBBBBBBB");
 
   for (uint32_t i = 0; i < c_lan3.GetN (); i++)
     {
@@ -499,14 +477,18 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
                                         ->GetObject<CsmaNetDevice> ()
                                         ->GetQueue ()
                                         ->GetObject<DropTailQueue<Packet>> ();
-
       NS_LOG_INFO ("LAN 3: Paquetes RECIBIDOS en la cola del puerto ["
                    << i << "]: " << cola_aux->GetTotalReceivedPackets ());
     }
-  NS_LOG_INFO ("CCCCCCCCCCCCCCCCCCCCC");
 
   NS_LOG_INFO (
       "Llamando al método GetReceived() del nodo servidor UDP: " << udpServer->GetReceived ());
+
+  NS_LOG_INFO ("Retardo medio: " << objeto_retardo.GetRetardoMedio () << " ms");
+
+  // Ptr<PacketSink> pt = c_lan3.Get (3)->GetApplication (0);
+
+  // NS_LOG_INFO ("Llamando al método GetTotalRx() del nodo servidor TCP: " << pt->GetTotalRx ());
 
   Simulator::Destroy ();
 
