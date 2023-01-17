@@ -57,9 +57,12 @@ void PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &s
 void PacketReceivedWithoutAddress (Ptr<const Packet> packet);
 
 Ptr<Node> PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate tasa);
-double escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_sim,
-                  double intervalo, std::string t_cola);
 
+double escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time stop_time,
+                  Time t_sim, double intervalo, std::string t_cola);
+
+ApplicationContainer c_app_onoff_all_in_one_node;
+//ApplicationContainer c_app_lan2_udp;
 /**
  *  Función [main]
  * Es la esencial para el correcto funcionamiento del programa. Será la encargada de ejecutar el escenario que corresponda
@@ -94,7 +97,7 @@ main (int argc, char *argv[])
   //cmd.AddValue ("tasa_codec", "Tasa de envío de la fuente en el estado on", tasa_codec);
   cmd.Parse (argc, argv);
 
-  escenario (nFuentes, cap_tx, tam_pkt, stop_time, tSim, intervalo, tam_cola);
+  escenario (nFuentes, nFuentes, cap_tx, tam_pkt, stop_time, tSim, intervalo, tam_cola);
   //grafica(nFuentes, cap_tx, tam_pkt, stop_time, tSim, tam_cola);
 }
 
@@ -134,8 +137,8 @@ PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate t
  * al apartado 1 de la práctica en función de los parámetros y condiciones que se requieran.
 */
 double
-escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_sim, double intervalo,
-           std::string t_cola)
+escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time stop_time,
+           Time t_sim, double intervalo, std::string t_cola)
 {
 
   // Network topology
@@ -182,7 +185,7 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   ////////////////////////////////////////////////////
 
   NodeContainer c_lan1_fuentes;
-  c_lan1_fuentes.Create (nodos);
+  c_lan1_fuentes.Create (nodos_lan1);
 
   NodeContainer c_lan1;
   c_lan1.Add (r0r1.Get (0));
@@ -201,6 +204,15 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
       c_lan1_router_fuentes.Get (i)->GetObject<CsmaNetDevice> ()->SetMtu (10000);
     }
 
+  NS_LOG_DEBUG ("Creando los UdpServer en las fuentes de la LAN 1...");
+
+  for (uint32_t i = 1; i < c_lan1.GetN (); i++)
+    {
+      UdpServerHelper udpServerHelper (20000);
+      ApplicationContainer c_server = udpServerHelper.Install (c_lan1.Get (i));
+    }
+  NS_LOG_DEBUG ("UdpServers de la LAN 1 creados...");
+
   ////////////////////////////////////////////////////
   //FIN CREACIÓN DE LA LAN 1
   ////////////////////////////////////////////////////
@@ -210,7 +222,7 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   ////////////////////////////////////////////////////
 
   NodeContainer c_lan2_fuentes;
-  c_lan2_fuentes.Create (nodos);
+  c_lan2_fuentes.Create (nodos_lan2);
 
   NodeContainer c_lan2;
   c_lan2.Add (r0r1.Get (1));
@@ -228,6 +240,17 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
     {
       c_lan2_router_fuentes.Get (i)->GetObject<CsmaNetDevice> ()->SetMtu (10000);
     }
+
+  NS_LOG_DEBUG ("Creando los UdpServer en las fuentes de la LAN 2...");
+
+  for (uint32_t i = 1; i < c_lan2.GetN (); i++)
+    {
+      UdpServerHelper udpServerHelper (20000);
+      ApplicationContainer c_server = udpServerHelper.Install (c_lan2.Get (i));
+    }
+  NS_LOG_DEBUG ("Aplicaciones en el nodo 3 de la lan2: " << c_lan2.Get (3)->GetNApplications ());
+
+  NS_LOG_DEBUG ("UdpServers de la LAN 2 creados...");
 
   ////////////////////////////////////////////////////
   //FIN CREACIÓN DE LA LAN 2
@@ -374,6 +397,83 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   ////////////////////////////////////////////////////
 
   ////////////////////////////////////////////////////
+  //CREACIÓN DE LAS FUENTES ONOFF UDP EN EL MISMO NODO
+  ////////////////////////////////////////////////////
+
+  //uint32_t nodos_total = nodos_lan1 + nodos_lan2;
+
+  // ApplicationContainer c_app_lan1_udp;
+  //Añadimos al servidor UDP tantas fuentes OnOff como nodos en cada LAN
+  for (int i = 1; i < nodos_lan1 + 1;
+       i++) //Hay que sumar 1, ya que interfaces_lan1.GetAddress (0) es la IP del router
+    {
+      OnOffHelper h_onoff ("ns3::UdpSocketFactory",
+                           InetSocketAddress (interfaces_lan1.GetAddress (i), 20000));
+
+      h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
+      h_onoff.SetAttribute (
+          "OnTime",
+          StringValue (
+              "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
+      h_onoff.SetAttribute (
+          "OffTime",
+          StringValue (
+              "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
+      //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
+      h_onoff.SetAttribute ("DataRate",
+                            StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("StopTime",
+                            TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+
+      ApplicationContainer OnOffAppTemp = h_onoff.Install (c_lan3.Get (2));
+      c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
+    }
+
+  //ApplicationContainer c_app_lan2_udp;
+  //Añadimos al servidor UDP tantas fuentes OnOff como nodos en cada LAN
+  for (int i = 1; i < nodos_lan2 + 1; i++)
+    {
+      OnOffHelper h_onoff ("ns3::UdpSocketFactory",
+                           InetSocketAddress (interfaces_lan2.GetAddress (i), 20000));
+
+      h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
+      h_onoff.SetAttribute (
+          "OnTime",
+          StringValue (
+              "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
+      h_onoff.SetAttribute (
+          "OffTime",
+          StringValue (
+              "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
+      //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
+      h_onoff.SetAttribute ("DataRate",
+                            StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("StopTime",
+                            TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+
+      ApplicationContainer OnOffAppTemp = h_onoff.Install (c_lan3.Get (2));
+      c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
+    }
+
+  // for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
+  //   {
+  //     Ptr<Application> app = c_app_onoff_all_in_one_node.Get (i);
+  //     app->SetStopTime (Simulator::Now ());
+  //   }
+
+  // for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
+  //   {
+  //     // Ptr<OnOffApplication> onoff_app = c_app_onoff_all_in_one_node.Get (i)->GetObject<OnOffApplication>();
+  //     // onoff_app->SendPacket ();
+  //     //c_app_onoff_all_in_one_node.Start(Simulator::Now());
+  //     c_app_onoff_all_in_one_node.Stop (Simulator::Now ());
+  //   }
+
+  ////////////////////////////////////////////////////
+  //FIN CREACIÓN DE LAS FUENTES ONOFF UDP EN EL MISMO NODO
+  ////////////////////////////////////////////////////
+
+  ////////////////////////////////////////////////////
   //CREACIÓN DE LA FUENTE ONOFF TCP
   ////////////////////////////////////////////////////
 
@@ -425,6 +525,12 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
   // NS_LOG_INFO (
   //     "Tamaño de la cola del puerto del switch conectado al servidor: " << tam_cola.Get ());
   // NS_LOG_INFO ("[Arranca la simulación] tiempo de simulación: " << t_sim.GetSeconds () << " s");
+
+  NS_LOG_DEBUG ("Aplicaciones en el nodo 3 de la lan2: " << c_lan2.Get (3)->GetNApplications ());
+  NS_LOG_DEBUG ("Aplicaciones en el nodo 2 de la lan1: " << c_lan1.Get (2)->GetNApplications ());
+  NS_LOG_DEBUG ("Aplicaciones en el nodo servidor: " << c_lan3.Get (2)->GetNApplications ());
+  NS_LOG_DEBUG ("Aplicaciones en el contenedor de aplicaciones del nodo servidor: "
+                << c_app_onoff_all_in_one_node.GetN ());
 
   NS_LOG_DEBUG ("Creando objeto_retardo...");
   Ptr<NetDevice> nodo_transmisor =
@@ -486,14 +592,9 @@ escenario (int nodos, DataRate capacidad, int tam_paq, Time stop_time, Time t_si
 
   NS_LOG_INFO ("Retardo medio: " << objeto_retardo.GetRetardoMedio () << " ms");
 
-  // Ptr<PacketSink> pt = c_lan3.Get (3)->GetApplication (0);
-
-  // NS_LOG_INFO ("Llamando al método GetTotalRx() del nodo servidor TCP: " << pt->GetTotalRx ());
-
   Simulator::Destroy ();
 
-  //return objeto_retardo.GetRetardoMedio ();
-  return 0;
+  return objeto_retardo.GetRetardoMedio ();
 }
 
 void
@@ -518,66 +619,78 @@ PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &srcAdd
 void
 PacketReceivedWithoutAddress (Ptr<const Packet> packet)
 {
-  NS_LOG_INFO ("Paquete recibido, contenido: " << *packet);
+  //NS_LOG_INFO ("Paquete recibido, contenido: " << *packet);
 
-  Ptr<Packet> copy = packet->Copy ();
-
-  // Headers must be removed in the order they're present.
-  PppHeader pppHeader;
-
-  EthernetHeader ethernetHeader;
-  //copy->RemoveHeader(ethernetHeader);
-  GenericMacHeader macHeader;
-  Ipv4Header ipHeader;
-  // copy->RemoveHeader(ipHeader);
-  UdpHeader udpHeader;
-
-  PacketMetadata::ItemIterator metadataIterator = copy->BeginItem ();
-  PacketMetadata::Item item;
-  NS_LOG_INFO ("Fuera");
-
-  while (metadataIterator.HasNext ())
+  for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
     {
-      NS_LOG_INFO ("Dentro");
+      Ptr<OnOffApplication> onoff_app =
+          c_app_onoff_all_in_one_node.Get (i)->GetObject<OnOffApplication> ();
+      onoff_app->SetStartTime (Simulator::Now ());
+      onoff_app->SetStopTime (Time ("1ms"));
 
-      item = metadataIterator.Next ();
-      // item.RemoveHeader (ipHeader, 20);
-      // NS_LOG_INFO ("HECHO");
-      NS_LOG_INFO ("item name: " << item.tid.GetName ());
-
-      if (item.tid.GetName () == "ns3::Ipv4Header")
-        {
-          NS_LOG_INFO ("ENCONTRADA");
-        }
-      break;
+      // c_app_onoff_all_in_one_node.Start(Simulator::Now());
+      // c_app_onoff_all_in_one_node.Stop(Time("1ms"));
     }
+  NS_LOG_INFO ("Paquete de respuesta enviado");
 
-  NS_LOG_INFO ("Tamaño del paquete: " << copy->GetSize ());
+  // Ptr<Packet> copy = packet->Copy ();
 
-  copy->PeekHeader (ethernetHeader);
-  NS_LOG_INFO ("ip header type: " << ipHeader.GetTypeId ());
+  // // Headers must be removed in the order they're present.
+  // PppHeader pppHeader;
 
-  // if (llc.GetType () == 0x0806)
+  // EthernetHeader ethernetHeader;
+  // //copy->RemoveHeader(ethernetHeader);
+  // GenericMacHeader macHeader;
+  // Ipv4Header ipHeader;
+  // // copy->RemoveHeader(ipHeader);
+  // UdpHeader udpHeader;
+
+  // PacketMetadata::ItemIterator metadataIterator = copy->BeginItem ();
+  // PacketMetadata::Item item;
+  // NS_LOG_INFO ("Fuera");
+
+  // while (metadataIterator.HasNext ())
   //   {
-  //     // found an ARP packet
+  //     NS_LOG_INFO ("Dentro");
+
+  //     item = metadataIterator.Next ();
+  //     // item.RemoveHeader (ipHeader, 20);
+  //     // NS_LOG_INFO ("HECHO");
+  //     NS_LOG_INFO ("item name: " << item.tid.GetName ());
+
+  //     if (item.tid.GetName () == "ns3::Ipv4Header")
+  //       {
+  //         NS_LOG_INFO ("ENCONTRADA");
+  //       }
+  //     break;
   //   }
 
-  //NS_LOG_INFO ("IP peekHeader: " << copy->PeekHeader (ipHeader));
+  // NS_LOG_INFO ("Tamaño del paquete: " << copy->GetSize ());
 
-  NS_LOG_INFO ("ppp removeHeader: " << copy->RemoveHeader (pppHeader));
+  // copy->PeekHeader (ethernetHeader);
+  // NS_LOG_INFO ("ip header type: " << ipHeader.GetTypeId ());
 
-  // NS_LOG_INFO ("generic mac removeHeader: " << copy->RemoveHeader (macHeader));
+  // // if (llc.GetType () == 0x0806)
+  // //   {
+  // //     // found an ARP packet
+  // //   }
 
-  // NS_LOG_INFO ("Ethernet removeHeader: " << copy->RemoveHeader (ethernetHeader));
+  // //NS_LOG_INFO ("IP peekHeader: " << copy->PeekHeader (ipHeader));
 
-  NS_LOG_INFO ("IP removeHeader: " << copy->RemoveHeader (ipHeader));
-  // NS_LOG_INFO ("UDP removeHeader: " << copy->RemoveHeader (udpHeader));
+  // NS_LOG_INFO ("ppp removeHeader: " << copy->RemoveHeader (pppHeader));
 
-  // NS_LOG_INFO ("header size ethernet: " << ethernetHeader.GetHeaderSize ());
-  // // NS_LOG_INFO ("IP size ethernet: " << ipHeader.GetHeaderSize());
+  // // NS_LOG_INFO ("generic mac removeHeader: " << copy->RemoveHeader (macHeader));
 
-  NS_LOG_INFO ("Payload size: " << ipHeader.GetPayloadSize ());
+  // // NS_LOG_INFO ("Ethernet removeHeader: " << copy->RemoveHeader (ethernetHeader));
 
-  NS_LOG_INFO ("IP origen: " << ipHeader.GetSource ());
-  NS_LOG_INFO ("IP destino: " << ipHeader.GetDestination ());
+  // NS_LOG_INFO ("IP removeHeader: " << copy->RemoveHeader (ipHeader));
+  // // NS_LOG_INFO ("UDP removeHeader: " << copy->RemoveHeader (udpHeader));
+
+  // // NS_LOG_INFO ("header size ethernet: " << ethernetHeader.GetHeaderSize ());
+  // // // NS_LOG_INFO ("IP size ethernet: " << ipHeader.GetHeaderSize());
+
+  // NS_LOG_INFO ("Payload size: " << ipHeader.GetPayloadSize ());
+
+  // NS_LOG_INFO ("IP origen: " << ipHeader.GetSource ());
+  // NS_LOG_INFO ("IP destino: " << ipHeader.GetDestination ());
 }
