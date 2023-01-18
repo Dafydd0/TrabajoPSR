@@ -47,10 +47,19 @@
 #include "ns3/wimax-mac-header.h"
 #include "ns3/packet-sink.h"
 #include "retardo.h"
+#include <iostream>
+#include <random>
+
+#define MIN_AUDIO 50
+#define MAX_AUDIO 90
+#define MIN_VIDEO 600
+#define MAX_VIDEO 1500
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Trabajo");
+
+int random (int low, int high);
 
 void PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &srcAddress,
                                 const Address &destAddress);
@@ -58,10 +67,15 @@ void PacketReceivedWithoutAddress (Ptr<const Packet> packet);
 
 Ptr<Node> PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate tasa);
 
-double escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time stop_time,
-                  Time t_sim, double intervalo, std::string t_cola);
+double escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
+                  double intervalo, std::string t_cola, bool trafico);
 
 ApplicationContainer c_app_onoff_all_in_one_node;
+
+//Para la generación de numeros aleatorios
+std::random_device rd;
+std::mt19937 gen (rd ());
+
 //ApplicationContainer c_app_lan2_udp;
 /**
  *  Función [main]
@@ -77,7 +91,7 @@ main (int argc, char *argv[])
 
   CommandLine cmd;
   int nFuentes = 6; // Número de Fuentes
-  int tam_pkt = 118; // Tamaño del Paquete
+  // int tam_pkt = 118; // Tamaño del Paquete
   Time stop_time ("120s"); // Tiempo de parada para las fuentes
   DataRate cap_tx ("100000kb/s"); // Capacidad de transmisión (100Mb/s)
   Time tSim ("120s"); // Tiempo de Simulación
@@ -85,19 +99,23 @@ main (int argc, char *argv[])
 
   std::string tam_cola = "1p"; // Tamaño de  la cola
 
+  bool trafico = false;
+
   //DataRate tasa_codec ("16kbps"); // Tasa de envío de la fuente en el estado on
 
   cmd.AddValue ("nFuentes", "Número total de fuentes", nFuentes);
-  cmd.AddValue ("tam_pkt", "Tamaño del paquete (Bytes)", tam_pkt);
+  // cmd.AddValue ("tam_pkt", "Tamaño del paquete (Bytes)", tam_pkt);
   cmd.AddValue ("stopTime", "Tiempo de parada para las fuentes", stop_time);
   cmd.AddValue ("cap_tx", "Capacidad de transmision de los enlaces", cap_tx);
   cmd.AddValue ("tSim", "Tiempo de simulación", tSim);
   cmd.AddValue ("intervalo", "Intervalo entre paquetes de cada fuente", intervalo);
   cmd.AddValue ("tam_cola", "Tamaño de las colas", tam_cola);
+  cmd.AddValue ("trafico", "Selecciona tipo de tráfico FALSE -> Audio | TRUE -> Audio + Video",
+                trafico);
   //cmd.AddValue ("tasa_codec", "Tasa de envío de la fuente en el estado on", tasa_codec);
   cmd.Parse (argc, argv);
 
-  escenario (nFuentes, nFuentes, cap_tx, tam_pkt, stop_time, tSim, intervalo, tam_cola);
+  escenario (nFuentes, nFuentes, cap_tx, stop_time, tSim, intervalo, tam_cola, trafico);
   //grafica(nFuentes, cap_tx, tam_pkt, stop_time, tSim, tam_cola);
 }
 
@@ -137,8 +155,8 @@ PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate t
  * al apartado 1 de la práctica en función de los parámetros y condiciones que se requieran.
 */
 double
-escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time stop_time,
-           Time t_sim, double intervalo, std::string t_cola)
+escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
+           double intervalo, std::string t_cola, bool trafico)
 {
 
   // Network topology
@@ -353,44 +371,53 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time
   ////////////////////////////////////////////////////
   //CREACIÓN DE LAS FUENTES ONOFF UDP
   ////////////////////////////////////////////////////
+
+  // GENERACIÓN DE TASA ALEATORIA
+  int tam_paq;
+  uint64_t tasa_total = 0;
+  if (trafico) //TRUE -> Audio + video
+    tam_paq = random (MIN_VIDEO, MAX_VIDEO);
+
+  else //FALSE -> Audio
+    tam_paq = random (MIN_AUDIO, MAX_AUDIO);
+
+  NS_LOG_DEBUG ("tam_paq aleatorio: " << tam_paq);
+
+  NS_LOG_DEBUG ("Atributos del objeto h_onoff modificados");
+
+  ApplicationContainer c_app_lan1;
+  ApplicationContainer c_app_lan2;
+
   OnOffHelper h_onoff ("ns3::UdpSocketFactory",
                        InetSocketAddress (interfaces_lan3.GetAddress (2),
                                           puerto_udp.Get ())); //El 2 es el Servidor UDP
-  h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
-  h_onoff.SetAttribute (
-      "OnTime",
-      StringValue (
-          "ns3::ExponentialRandomVariable[Mean=0.35]")); //Se establece el atributo OnTime a 0.35
-  h_onoff.SetAttribute (
-      "OffTime",
-      StringValue (
-          "ns3::ExponentialRandomVariable[Mean=0.65]")); //Se establece el atributo Offtime a 0.65
-  //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
-  h_onoff.SetAttribute ("DataRate",
-                        StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
-  h_onoff.SetAttribute ("StopTime", TimeValue (stop_time)); //Se establece el tiempo de parada
-  NS_LOG_DEBUG ("Atributos del objeto h_onoff modificados");
-
-  DataRate tasa_codec ("8kbps");
-  // h_onoff.SetConstantRate(tasa_codec, tam_paq); //Esto creo que tiene que ser así
-
-  ApplicationContainer c_app_lan1 = h_onoff.Install (c_lan1_fuentes);
 
   for (uint32_t i = 1; i < c_lan1_fuentes.GetN (); i++) // Se empieza en 1, ya que el 0 es el router
     {
-      c_app_lan1.Get (i)->SetStopTime (stop_time);
-    }
+      DataRate tasa = random (40 * 1000, 80 * 1000);
+      tasa_total = tasa_total + tasa.GetBitRate ();
 
-  ApplicationContainer c_app_lan2 = h_onoff.Install (c_lan2_fuentes);
+      NS_LOG_DEBUG ("tasa aleatoria: " << tasa);
+
+      h_onoff.SetConstantRate (tasa, tam_paq); //Esto creo que tiene que ser así
+
+      ApplicationContainer c_app_temp = h_onoff.Install (c_lan1_fuentes.Get (i));
+      c_app_lan1.Add (c_app_temp);
+    }
 
   for (uint32_t i = 1; i < c_lan2_fuentes.GetN (); i++) // Se empieza en 1, ya que el 0 es el router
     {
-      c_app_lan2.Get (i)->SetStopTime (stop_time);
-    }
+      DataRate tasa = random (40 * 1000, 80 * 1000);
+      tasa_total = tasa_total + tasa.GetBitRate ();
 
-  //IntegerValue reg_binFuente = tam_paq * 8 / intervalo;
-  //NS_LOG_INFO ("Tiempo entre paquetes: " << intervalo << "s");
-  //NS_LOG_INFO ("Régimen binario de las fuentes: " << reg_binFuente.Get () << " bps");
+      NS_LOG_DEBUG ("tasa aleatoria: " << tasa);
+
+      h_onoff.SetConstantRate (tasa, tam_paq); //Esto creo que tiene que ser así
+
+      ApplicationContainer c_app_temp = h_onoff.Install (c_lan2_fuentes.Get (i));
+      c_app_lan2.Add (c_app_temp);
+    }
+  NS_LOG_DEBUG ("c_app_lan2 size: " << c_app_lan2.GetN ());
 
   ////////////////////////////////////////////////////
   //FIN CREACIÓN DE LAS FUENTES ONOFF UDP
@@ -410,20 +437,27 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time
       OnOffHelper h_onoff ("ns3::UdpSocketFactory",
                            InetSocketAddress (interfaces_lan1.GetAddress (i), 20000));
 
-      h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
-      h_onoff.SetAttribute (
-          "OnTime",
-          StringValue (
-              "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
-      h_onoff.SetAttribute (
-          "OffTime",
-          StringValue (
-              "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
-      //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
-      h_onoff.SetAttribute ("DataRate",
-                            StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      // h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
+      // h_onoff.SetAttribute (
+      //     "OnTime",
+      //     StringValue (
+      //         "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
+      // h_onoff.SetAttribute (
+      //     "OffTime",
+      //     StringValue (
+      //         "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
+      // //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
+      // h_onoff.SetAttribute ("DataRate",
+      //                       StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      // h_onoff.SetAttribute ("StopTime",
+      //                       TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+
+      h_onoff.SetConstantRate (tasa_total, 1800); //Esto creo que tiene que ser así
+
+      h_onoff.SetAttribute ("StartTime",
+                            TimeValue (Time ("10ms"))); //Se establece el tiempo de parada
       h_onoff.SetAttribute ("StopTime",
-                            TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+                            TimeValue (stop_time)); //Se establece el tiempo de parada
 
       ApplicationContainer OnOffAppTemp = h_onoff.Install (c_lan3.Get (2));
       c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
@@ -436,20 +470,27 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time
       OnOffHelper h_onoff ("ns3::UdpSocketFactory",
                            InetSocketAddress (interfaces_lan2.GetAddress (i), 20000));
 
-      h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
-      h_onoff.SetAttribute (
-          "OnTime",
-          StringValue (
-              "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
-      h_onoff.SetAttribute (
-          "OffTime",
-          StringValue (
-              "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
-      //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
-      h_onoff.SetAttribute ("DataRate",
-                            StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      // h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq));
+      // h_onoff.SetAttribute (
+      //     "OnTime",
+      //     StringValue (
+      //         "ns3::ExponentialRandomVariable[Mean=0.01]")); //Se establece el atributo OnTime a 0.35
+      // h_onoff.SetAttribute (
+      //     "OffTime",
+      //     StringValue (
+      //         "ns3::ExponentialRandomVariable[Mean=1]")); //Se establece el atributo Offtime a 0.65
+      // //No se si aquí hay que poner 8kbps o 2kbps -> PPS = 16,67pps -> 16,67pps*118B = 2Kbps
+      // h_onoff.SetAttribute ("DataRate",
+      //                       StringValue ("8kbps")); //Se establece el regimen binario a 8kbps
+      // h_onoff.SetAttribute ("StopTime",
+      //                       TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+
+      h_onoff.SetConstantRate (tasa_total, 1800); //Esto creo que tiene que ser así
+
+      h_onoff.SetAttribute ("StartTime",
+                            TimeValue (Time ("10ms"))); //Se establece el tiempo de parada
       h_onoff.SetAttribute ("StopTime",
-                            TimeValue (Simulator::Now ())); //Se establece el tiempo de parada
+                            TimeValue (stop_time)); //Se establece el tiempo de parada
 
       ApplicationContainer OnOffAppTemp = h_onoff.Install (c_lan3.Get (2));
       c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
@@ -460,6 +501,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time
   //     Ptr<Application> app = c_app_onoff_all_in_one_node.Get (i);
   //     app->SetStopTime (Simulator::Now ());
   //   }
+
 
   // for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
   //   {
@@ -542,8 +584,8 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, int tam_paq, Time
 
   //Nos suscribimos a la traza para saber la dirección del emisor cuando recibimos algún paquete
   //udpserver->TraceConnectWithoutContext ("RxWithAddresses", MakeCallback (&PacketReceivedWithAddress)); //LAN fuentes
-  udpServer->TraceConnectWithoutContext (
-      "Rx", MakeCallback (&PacketReceivedWithoutAddress)); //LAN fuentes
+  // udpServer->TraceConnectWithoutContext (
+  //     "Rx", MakeCallback (&PacketReceivedWithoutAddress)); //LAN fuentes
   //udpserver_admin->TraceConnectWithoutContext ("RxWithAddresses", MakeCallback (&PacketReceivedWithAddress)); //LAN admin
 
   Simulator::Stop (stop_time);
@@ -619,7 +661,7 @@ PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &srcAdd
 void
 PacketReceivedWithoutAddress (Ptr<const Packet> packet)
 {
-  //NS_LOG_INFO ("Paquete recibido, contenido: " << *packet);
+  NS_LOG_INFO ("Paquete recibido, contenido: " << *packet);
 
   for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
     {
@@ -631,7 +673,7 @@ PacketReceivedWithoutAddress (Ptr<const Packet> packet)
       // c_app_onoff_all_in_one_node.Start(Simulator::Now());
       // c_app_onoff_all_in_one_node.Stop(Time("1ms"));
     }
-  NS_LOG_INFO ("Paquete de respuesta enviado");
+  //NS_LOG_INFO ("Paquete de respuesta enviado");
 
   // Ptr<Packet> copy = packet->Copy ();
 
@@ -693,4 +735,10 @@ PacketReceivedWithoutAddress (Ptr<const Packet> packet)
 
   // NS_LOG_INFO ("IP origen: " << ipHeader.GetSource ());
   // NS_LOG_INFO ("IP destino: " << ipHeader.GetDestination ());
+}
+int
+random (int low, int high)
+{
+  std::uniform_int_distribution<> dist (low, high);
+  return dist (gen);
 }
