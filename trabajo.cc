@@ -413,7 +413,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_cliente = random (MIN_VIDEO_CLIENTE, MAX_VIDEO_CLIENTE);
-          tasa_cliente = 18600 * tam_paq_cliente; //18600 por medidas reales de wireshark
+          tasa_cliente = (18600/60) * tam_paq_cliente; //18600 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.004]")); //4ms
         }
@@ -421,7 +421,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       else
         { //FALSE -> Audio
           tam_paq_cliente = random (MIN_AUDIO_CLIENTE, MAX_AUDIO_CLIENTE);
-          tasa_cliente = 4300 * tam_paq_cliente; //4300 por medidas reales de wireshark
+          tasa_cliente = (4300/60) * tam_paq_cliente; //4300 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.015]")); //15ms
         }
@@ -442,7 +442,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_cliente = random (MIN_VIDEO_CLIENTE, MAX_VIDEO_CLIENTE);
-          tasa_cliente = 18600 * tam_paq_cliente; //18600 por medidas reales de wireshark
+          tasa_cliente = (18600/60) * tam_paq_cliente; //18600 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.004]")); //4ms
         }
@@ -450,7 +450,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       else
         { //FALSE -> Audio
           tam_paq_cliente = random (MIN_AUDIO_CLIENTE, MAX_AUDIO_CLIENTE);
-          tasa_cliente = 4300 * tam_paq_cliente; //4300 por medidas reales de wireshark
+          tasa_cliente = (4300/60) * tam_paq_cliente; //4300 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.015]")); //15ms
         }
@@ -489,7 +489,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_servidor = random (MIN_VIDEO_SERVER, MAX_VIDEO_SERVER);
-          tasa_server = 5500 * tam_paq_servidor; //5500 por medidas reales de wireshark
+          tasa_server = (5500/60) * tam_paq_servidor; //5500 por medidas reales de wireshark
 
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.006]")); //6ms
@@ -498,7 +498,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       else
         { //FALSE -> Audio
           tam_paq_servidor = random (MIN_AUDIO_SERVER, MAX_AUDIO_SERVER);
-          tasa_server = 1260 * tam_paq_servidor; //1260 por medidas reales de wireshark
+          tasa_server = (1260/60) * tam_paq_servidor; //1260 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.02]")); //20ms
         }
@@ -530,7 +530,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_servidor = random (MIN_VIDEO_SERVER, MAX_VIDEO_SERVER);
-          tasa_server = 5500 * tam_paq_servidor; //5500 por medidas reales de wireshark
+          tasa_server = (5500/60) * tam_paq_servidor; //5500 por medidas reales de wireshark
 
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.006]")); //6ms
@@ -539,7 +539,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       else
         { //FALSE -> Audio
           tam_paq_servidor = random (MIN_AUDIO_SERVER, MAX_AUDIO_SERVER);
-          tasa_server = 1260 * tam_paq_servidor; //1260 por medidas reales de wireshark
+          tasa_server = (1260/60) * tam_paq_servidor; //1260 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.02]")); //20ms
         }
