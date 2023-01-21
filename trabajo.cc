@@ -85,8 +85,8 @@ Ptr<Node> PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, 
 double escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
                   double intervalo, std::string t_cola, bool trafico);
 
-double grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
-                double intervalo, std::string t_cola, bool trafico);
+void grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
+              double intervalo, std::string t_cola, bool trafico);
 
 //Para la generación de numeros aleatorios
 std::random_device rd;
@@ -109,7 +109,7 @@ main (int argc, char *argv[])
   int nFuentes = 6; // Número de Fuentes
   // int tam_pkt = 118; // Tamaño del Paquete
   Time stop_time ("120s"); // Tiempo de parada para las fuentes
-  DataRate cap_tx ("1000000kb/s"); // Capacidad de transmisión (100Mb/s)
+  DataRate cap_tx ("100000kb/s"); // Capacidad de transmisión (100Mb/s)
   Time tSim ("120s"); // Tiempo de Simulación
   double intervalo = 0.060; // Intervalo entre paquetes
 
@@ -389,28 +389,12 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
   ////////////////////////////////////////////////////
 
   // GENERACIÓN DE TASA ALEATORIA
-  int tam_paq_cliente;
-  int tam_paq_servidor;
+  int tam_paq_cliente = 0;
+  int tam_paq_servidor = 0;
   DataRate tasa_cliente;
   DataRate tasa_server;
-  //uint64_t tasa_total = 0;
-  // if (trafico)
-  //   { //TRUE -> Audio + video
-  //     tam_paq_cliente = random (MIN_VIDEO_CLIENTE, MAX_VIDEO_CLIENTE);
-  //     tam_paq_servidor = random (MIN_VIDEO_SERVER, MAX_VIDEO_SERVER);
-  //     tasa_cliente = 18600 * tam_paq_cliente; //18600 por medidas reales de wireshark
-  //     tasa_server = 5500 * tam_paq_servidor; //5500 por medidas reales de wireshark
-  //   }
 
-  // else
-  //   { //FALSE -> Audio
-  //     tam_paq_cliente = random (MIN_AUDIO_CLIENTE, MAX_AUDIO_CLIENTE);
-  //     tam_paq_servidor = random (MIN_AUDIO_SERVER, MAX_AUDIO_SERVER);
-  //     tasa_cliente = 4300 * tam_paq_cliente; //4300 por medidas reales de wireshark
-  //     tasa_server = 1260 * tam_paq_servidor; //1260 por medidas reales de wireshark
-  //   }
-
-  NS_LOG_DEBUG ("Atributos del objeto h_onoff modificados");
+  //NS_LOG_DEBUG ("Atributos del objeto h_onoff modificados");
 
   ApplicationContainer c_app_lan1;
   ApplicationContainer c_app_lan2;
@@ -711,7 +695,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
 
   Simulator::Destroy ();
 
-  return 2 * objeto_retardo.GetRetardoMedio ();
+  return (2 * objeto_retardo.GetRetardoMedio ());
 }
 
 int
@@ -721,27 +705,29 @@ random (int low, int high)
   return dist (gen);
 }
 
-double
+void
 grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
          double intervalo, std::string t_cola, bool trafico)
 {
   int nodos_lan1_in = nodos_lan1;
   int nodos_lan2_in = nodos_lan2;
 
-  int fuentes = nodos_lan1 + nodos_lan2;
+  //int fuentes = nodos_lan1_in + nodos_lan2_in;
   // int fuentes_iniciales = fuentes;
-  double t_cola_aux = std::stod (t_cola);
-  double t_cola_inicial = t_cola_aux;
+  // double t_cola_aux = std::stod (t_cola);
+  // double t_cola_inicial = t_cola_aux;
+
+  double colaAux = std::stod (t_cola);
 
   Gnuplot grafica;
   grafica.SetTitle ("GRAFICA TRABAJO");
-  grafica.SetLegend ("Tamaño de la cola de control (paquetes)", "Retardo medio (ms)");
+  grafica.SetLegend ("Tamaño de la cola [paquetes]", "Retardo medio [ms]");
 
   for (int i = 1; i < NUM_CURVAS; i++)
     {
       Average<double> puntos;
       double IC = 0.0;
-      Gnuplot2dDataset curva ("Fuentes: " + std::to_string (fuentes));
+      Gnuplot2dDataset curva ("Fuentes: " + std::to_string (nodos_lan1_in + nodos_lan2_in));
       curva.SetStyle (Gnuplot2dDataset::LINES_POINTS);
       curva.SetErrorBars (Gnuplot2dDataset::Y);
 
@@ -751,24 +737,19 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Tim
           for (uint32_t iteracion = 0; iteracion < ITERACIONES; iteracion++)
             {
               NS_LOG_DEBUG ("Generando el punto [" << iteracion << "] ...");
-              std::string t_c_aux = std::to_string (t_cola_aux);
-              // Procedemos a la simulación
-              if (t_cola_aux < 1.0)
-                {
-                  t_c_aux = "1p";
-                  NS_LOG_DEBUG ("ADVERTENCIA: Se ha alcanzado el tamaño mínimo de la cola, se "
-                                "redondeará a 1p.");
-                }
-              else
-                {
-                  t_c_aux = t_c_aux + "p";
-                  NS_LOG_DEBUG ("Punto [" << i << "]\tvalor de 'cola': " << t_c_aux);
-                }
+              std::string colaAuxString = std::to_string (
+                  colaAux); //Vamos a manejar la cola              // Procedemos a la simulación
+
+              //Convertir la cola de string a double
+              double colaAux_toDouble = std::stod (colaAuxString);
+              std::stringstream temp;
+              temp << colaAux_toDouble << "p";
+              std::string colaAux_toDouble_toString = temp.str ();
 
               // Actualizamos el punto actual con los datos obtenidos de la simulación
 
               double dato = escenario (nodos_lan1_in, nodos_lan2_in, capacidad, stop_time, t_sim,
-                                       intervalo, t_c_aux, trafico);
+                                       intervalo, colaAux_toDouble_toString, trafico);
               NS_LOG_DEBUG ("\n\tvalor [" << i << "]\t-> " << dato << "\n");
               puntos.Update (dato);
             }
@@ -778,208 +759,24 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Tim
           // Cálculo del intervalo de confianza
           IC = T_STUDENT_8_95 * sqrt (puntos.Var () / puntos.Count ());
 
-          curva.Add (t_cola_aux, puntos.Avg (), IC);
+          curva.Add (colaAux, puntos.Avg (), IC);
           NS_LOG_DEBUG ("\n\n[======] PUNTO AÑADIDO A LA CURVA [======]\n\n");
-          t_cola_aux = t_cola_aux + 5;
+          colaAux = colaAux + 10;
         }
       grafica.AddDataset (curva);
 
       // Actualización de los valores
-      nodos_lan1_in = nodos_lan1_in + 5;
-      nodos_lan2_in = nodos_lan2_in + 5;
+      nodos_lan1_in = nodos_lan1_in + 3;
+      nodos_lan2_in = nodos_lan2_in + 3;
 
-      t_cola_aux = t_cola_inicial;
+      colaAux = std::stod (t_cola);
     }
 
   // Generación de ficheros
-  NS_LOG_DEBUG ("Generando archivo 'grafica4.plt'...");
-  std::ofstream fichero ("grafica4.plt");
+  NS_LOG_DEBUG ("Generando archivo 'grafica.plt'...");
+
+  std::ofstream fichero ("grafica.plt");
   grafica.GenerateOutput (fichero);
   fichero << "pause -1" << std::endl;
   fichero.close ();
 }
-
-// double
-// grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Time t_sim,
-//          double intervalo, std::string t_cola, bool trafico)
-// {
-
-//   // NS_LOG_FUNCTION (n_fuentes << capacidad_tx << tamanio_paquetes << timeBtwPkts << n_paq << tamcola
-//   //                            << simtime);
-
-//   double colaAux = std::stod (t_cola);
-//   //NS_LOG_DEBUG("colaAux:" << colaAux);
-
-//   Gnuplot grafica;
-//   grafica.SetTitle ("GRAFICA TRABAJO");
-//   grafica.SetLegend ("Tamaño de la cola [paquetes]", "Perdida de paquetes [%]");
-
-//   for (uint32_t i = 1; i < N_CURVAS; i++)
-//     {
-
-//       //Actualizamos los valores de los parámetros de las curvas
-
-//       Average<double> puntos;
-//       Gnuplot2dDataset curva ("Fuentes: " + std::to_string (n_fuentes));
-//       curva.SetStyle (Gnuplot2dDataset::LINES_POINTS);
-//       curva.SetErrorBars (Gnuplot2dDataset::Y);
-
-//       for (uint32_t x = 0; x < N_PUNTOS; x++)
-//         {
-
-//           for (uint32_t iteracion = 0; iteracion < N_ITERACIONES; iteracion++)
-//             {
-
-//               NS_LOG_DEBUG ("Generando punto: " << iteracion);
-//               // Realizamos la simulación
-
-//               std::string colaAuxString = std::to_string (colaAux); //Vamos a manejar la cola
-//               //NS_LOG_DEBUG("colaAuxString: " << colaAuxString);
-
-//               if (colaAux < 1.0)
-//                 { //Si la cola es menor que la mínima le cambiamos el valor a la minima
-
-//                   colaAuxString = "1p";
-//                   NS_LOG_DEBUG ("Se ha alcanzado el tamaño mínimo de la cola");
-//                 }
-
-//               Time stopTime = Time (std::to_string (n_paq * (timeBtwPkts.GetSeconds ())));
-//               Time simTime = Time (std::to_string (n_paq * (timeBtwPkts.GetSeconds ()) +
-//                                                    (timeBtwPkts.GetSeconds ())));
-
-//               double colaAux_toDouble = std::stod (colaAuxString);
-//               //NS_LOG_DEBUG("colaAux_toDouble: " << colaAux_toDouble);
-//               std::stringstream temp;
-//               temp << colaAux_toDouble << "p";
-//               std::string colaAux_toDouble_toString = temp.str ();
-//               //NS_LOG_DEBUG("colaAux_toDouble_toString: " << colaAux_toDouble_toString);
-
-//               double dato = escenario (n_fuentes, capacidad_tx, tamanio_paquetes, timeBtwPkts,
-//                                        n_paq, colaAux_toDouble_toString, simTime, stopTime, false);
-
-//               double porcentaje = (dato / (n_paq * n_fuentes)) * 100;
-//               puntos.Update (porcentaje);
-//             }
-//           //Añadimos el punto a la curva con IC=0
-
-//           curva.Add (colaAux, puntos.Avg (), 0);
-
-//           //Cambiamos el tamaño de la cola según el régimen exponencial binario
-//           colaAux = pow (colaAux * 0.5, 1);
-
-//           NS_LOG_DEBUG ("Punto añadido a la curva");
-//         }
-
-//       //Añadimos la curva a la gráfica
-//       grafica.AddDataset (curva);
-
-//       //Actualizamos valores
-//       n_fuentes = n_fuentes + 8;
-
-//       colaAux = std::stod (tamcola);
-//     }
-
-//   //Generamos el ficheros
-//   std::ofstream fichero ("grafica4.plt");
-//   grafica.GenerateOutput (fichero);
-//   fichero << "pause -1" << std::endl;
-//   fichero.close ();
-// }
-
-// void
-// PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &srcAddress,
-//                            const Address &destAddress)
-// {
-//   NS_LOG_INFO ("Paquete recibido: " << packet << ", dirección origen: " << srcAddress
-//                                     << ", dirección destino: " << destAddress);
-//   Ptr<Packet> copy = packet->Copy ();
-
-//   // Headers must be removed in the order they're present.
-//   // EthernetHeader ethernetHeader;
-//   //copy->RemoveHeader(ethernetHeader);
-//   Ipv4Header ipHeader;
-//   NS_LOG_INFO ("IP peekHeader: " << copy->PeekHeader (ipHeader));
-
-//   copy->RemoveHeader (ipHeader);
-
-//   NS_LOG_INFO ("IP origen: " << ipHeader.GetSource ());
-//   NS_LOG_INFO ("IP destino: " << ipHeader.GetDestination ());
-// }
-// void
-// PacketReceivedWithoutAddress (Ptr<const Packet> packet)
-// {
-//   NS_LOG_INFO ("Paquete recibido, contenido: " << *packet);
-
-//   for (uint32_t i = 0; i < c_app_onoff_all_in_one_node.GetN (); i++)
-//     {
-//       Ptr<OnOffApplication> onoff_app =
-//           c_app_onoff_all_in_one_node.Get (i)->GetObject<OnOffApplication> ();
-//       onoff_app->SetStartTime (Simulator::Now ());
-//       onoff_app->SetStopTime (Time ("1ms"));
-
-//       // c_app_onoff_all_in_one_node.Start(Simulator::Now());
-//       // c_app_onoff_all_in_one_node.Stop(Time("1ms"));
-//     }
-//   //NS_LOG_INFO ("Paquete de respuesta enviado");
-
-//   // Ptr<Packet> copy = packet->Copy ();
-
-//   // // Headers must be removed in the order they're present.
-//   // PppHeader pppHeader;
-
-//   // EthernetHeader ethernetHeader;
-//   // //copy->RemoveHeader(ethernetHeader);
-//   // GenericMacHeader macHeader;
-//   // Ipv4Header ipHeader;
-//   // // copy->RemoveHeader(ipHeader);
-//   // UdpHeader udpHeader;
-
-//   // PacketMetadata::ItemIterator metadataIterator = copy->BeginItem ();
-//   // PacketMetadata::Item item;
-//   // NS_LOG_INFO ("Fuera");
-
-//   // while (metadataIterator.HasNext ())
-//   //   {
-//   //     NS_LOG_INFO ("Dentro");
-
-//   //     item = metadataIterator.Next ();
-//   //     // item.RemoveHeader (ipHeader, 20);
-//   //     // NS_LOG_INFO ("HECHO");
-//   //     NS_LOG_INFO ("item name: " << item.tid.GetName ());
-
-//   //     if (item.tid.GetName () == "ns3::Ipv4Header")
-//   //       {
-//   //         NS_LOG_INFO ("ENCONTRADA");
-//   //       }
-//   //     break;
-//   //   }
-
-//   // NS_LOG_INFO ("Tamaño del paquete: " << copy->GetSize ());
-
-//   // copy->PeekHeader (ethernetHeader);
-//   // NS_LOG_INFO ("ip header type: " << ipHeader.GetTypeId ());
-
-//   // // if (llc.GetType () == 0x0806)
-//   // //   {
-//   // //     // found an ARP packet
-//   // //   }
-
-//   // //NS_LOG_INFO ("IP peekHeader: " << copy->PeekHeader (ipHeader));
-
-//   // NS_LOG_INFO ("ppp removeHeader: " << copy->RemoveHeader (pppHeader));
-
-//   // // NS_LOG_INFO ("generic mac removeHeader: " << copy->RemoveHeader (macHeader));
-
-//   // // NS_LOG_INFO ("Ethernet removeHeader: " << copy->RemoveHeader (ethernetHeader));
-
-//   // NS_LOG_INFO ("IP removeHeader: " << copy->RemoveHeader (ipHeader));
-//   // // NS_LOG_INFO ("UDP removeHeader: " << copy->RemoveHeader (udpHeader));
-
-//   // // NS_LOG_INFO ("header size ethernet: " << ethernetHeader.GetHeaderSize ());
-//   // // // NS_LOG_INFO ("IP size ethernet: " << ipHeader.GetHeaderSize());
-
-//   // NS_LOG_INFO ("Payload size: " << ipHeader.GetPayloadSize ());
-
-//   // NS_LOG_INFO ("IP origen: " << ipHeader.GetSource ());
-//   // NS_LOG_INFO ("IP destino: " << ipHeader.GetDestination ());
-// }
