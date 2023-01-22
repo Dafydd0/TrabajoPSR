@@ -64,7 +64,7 @@
 #define MIN_VIDEO_SERVER 640
 #define MAX_VIDEO_SERVER 1280
 
-#define NUM_CURVAS 5
+#define NUM_CURVAS 4
 #define NUM_PUNTOS 8
 #define ITERACIONES 10
 #define T_STUDENT_16_95 1.7459
@@ -75,10 +75,6 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("Trabajo");
 
 int random (int low, int high);
-
-void PacketReceivedWithAddress (const Ptr<const Packet> packet, const Address &srcAddress,
-                                const Address &destAddress);
-void PacketReceivedWithoutAddress (Ptr<const Packet> packet);
 
 Ptr<Node> PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate tasa);
 
@@ -177,7 +173,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
 
   // Network topology
   /*
-
       L2 - R1 ----- R0 -  L1
              \     /
               \   /             
@@ -185,8 +180,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
                 R2
                 |
                 L3
-
-
 */
 
   // Ptr<Node> n_servidor = CreateObject<Node> ();
@@ -413,20 +406,20 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_cliente = random (MIN_VIDEO_CLIENTE, MAX_VIDEO_CLIENTE);
-          tasa_cliente = (18600/60) * tam_paq_cliente; //18600 por medidas reales de wireshark
+          tasa_cliente = (18600 / 60) * tam_paq_cliente; //18600 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.004]")); //4ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0004]")); //4ms
         }
 
       else
         { //FALSE -> Audio
           tam_paq_cliente = random (MIN_AUDIO_CLIENTE, MAX_AUDIO_CLIENTE);
-          tasa_cliente = (4300/60) * tam_paq_cliente; //4300 por medidas reales de wireshark
+          tasa_cliente = (4300 / 60) * tam_paq_cliente; //4300 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.015]")); //15ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0015]")); //15ms
         }
       h_onoff.SetAttribute ("OnTime",
-                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
+                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.0003]")); //3ms
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_cliente));
 
       h_onoff.SetAttribute ("DataRate",
@@ -442,20 +435,20 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_cliente = random (MIN_VIDEO_CLIENTE, MAX_VIDEO_CLIENTE);
-          tasa_cliente = (18600/60) * tam_paq_cliente; //18600 por medidas reales de wireshark
+          tasa_cliente = (18600 / 60) * tam_paq_cliente; //18600 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.004]")); //4ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0004]")); //4ms
         }
 
       else
         { //FALSE -> Audio
           tam_paq_cliente = random (MIN_AUDIO_CLIENTE, MAX_AUDIO_CLIENTE);
-          tasa_cliente = (4300/60) * tam_paq_cliente; //4300 por medidas reales de wireshark
+          tasa_cliente = (4300 / 60) * tam_paq_cliente; //4300 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.015]")); //15ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0015]")); //15ms
         }
       h_onoff.SetAttribute ("OnTime",
-                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
+                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.0003]")); //3ms
 
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_cliente));
 
@@ -465,7 +458,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       ApplicationContainer c_app_temp = h_onoff.Install (c_lan2_fuentes.Get (i));
       c_app_lan2.Add (c_app_temp);
     }
-  NS_LOG_DEBUG ("c_app_lan2 size: " << c_app_lan2.GetN ());
 
   ////////////////////////////////////////////////////
   //FIN CREACIÓN DE LAS FUENTES ONOFF UDP
@@ -489,23 +481,23 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_servidor = random (MIN_VIDEO_SERVER, MAX_VIDEO_SERVER);
-          tasa_server = (5500/60) * tam_paq_servidor; //5500 por medidas reales de wireshark
+          tasa_server = (5500 / 60) * tam_paq_servidor; //5500 por medidas reales de wireshark
 
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.006]")); //6ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0006]")); //6ms
         }
 
       else
         { //FALSE -> Audio
           tam_paq_servidor = random (MIN_AUDIO_SERVER, MAX_AUDIO_SERVER);
-          tasa_server = (1260/60) * tam_paq_servidor; //1260 por medidas reales de wireshark
+          tasa_server = (1260 / 60) * tam_paq_servidor; //1260 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.02]")); //20ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.002]")); //20ms
         }
       //Según wireshark el ontime es de ~0.3ms y el offtime es de ~3ms
 
       h_onoff.SetAttribute ("OnTime",
-                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
+                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.0003]")); //3ms
 
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_servidor));
 
@@ -530,29 +522,28 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       if (trafico)
         { //TRUE -> Audio + video
           tam_paq_servidor = random (MIN_VIDEO_SERVER, MAX_VIDEO_SERVER);
-          tasa_server = (5500/60) * tam_paq_servidor; //5500 por medidas reales de wireshark
+          tasa_server = (5500 / 60) * tam_paq_servidor; //5500 por medidas reales de wireshark
 
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.006]")); //6ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.0006]")); //6ms
         }
 
       else
         { //FALSE -> Audio
           tam_paq_servidor = random (MIN_AUDIO_SERVER, MAX_AUDIO_SERVER);
-          tasa_server = (1260/60) * tam_paq_servidor; //1260 por medidas reales de wireshark
+          tasa_server = (1260 / 60) * tam_paq_servidor; //1260 por medidas reales de wireshark
           h_onoff.SetAttribute ("OffTime",
-                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.02]")); //20ms
+                                StringValue ("ns3::ExponentialRandomVariable[Mean=0.002]")); //20ms
         }
 
       //Según wireshark el ontime es de ~0.3ms y el offtime es de ~3ms
 
       h_onoff.SetAttribute ("OnTime",
-                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
+                            StringValue ("ns3::ExponentialRandomVariable[Mean=0.0003]")); //3ms
 
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_servidor));
 
-      h_onoff.SetAttribute ("DataRate",
-                            DataRateValue (tasa_server)); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("DataRate", DataRateValue (tasa_server));
       h_onoff.SetAttribute ("StartTime",
                             TimeValue (Time ("10s"))); //Se establece el tiempo de parada
       h_onoff.SetAttribute ("StopTime",
@@ -561,6 +552,9 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
       ApplicationContainer OnOffAppTemp = h_onoff.Install (c_lan3.Get (2));
       c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
     }
+
+  NS_LOG_DEBUG (
+      "Numero de aplicaciones OnOff en el nodo servidor: " << c_app_onoff_all_in_one_node.GetN ());
 
   NS_LOG_DEBUG ("tam_paq_cliente aleatorio: " << tam_paq_cliente);
   NS_LOG_DEBUG ("tam_paq_server aleatorio: " << tam_paq_servidor);
@@ -591,7 +585,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
   clientApp.Add (
       clientHelperTcp.Install (c_lan3.Get (1))); // Instala la fuente TCP en el nodo admin
 
-  //clientApp.Start (Seconds (1.0));
+  clientApp.Start (Seconds (1.0));
   clientApp.Stop (stop_time);
 
   ////////////////////////////////////////////////////
@@ -691,7 +685,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, T
   NS_LOG_INFO (
       "Llamando al método GetReceived() del nodo servidor UDP: " << udpServer->GetReceived ());
 
-  NS_LOG_INFO ("Retardo medio: " << objeto_retardo.GetRetardoMedio () * 2 << " ms");
+  NS_LOG_INFO ("Retardo medio: " << (objeto_retardo.GetRetardoMedio () * 2) / 1000 << " ms");
 
   Simulator::Destroy ();
 
@@ -751,7 +745,7 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Tim
               double dato = escenario (nodos_lan1_in, nodos_lan2_in, capacidad, stop_time, t_sim,
                                        intervalo, colaAux_toDouble_toString, trafico);
               NS_LOG_DEBUG ("\n\tvalor [" << i << "]\t-> " << dato << "\n");
-              puntos.Update (dato);
+              puntos.Update (dato / 1000);
             }
 
           NS_LOG_DEBUG ("Generación de puntos finalizada");
@@ -759,15 +753,17 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Tim
           // Cálculo del intervalo de confianza
           IC = T_STUDENT_8_95 * sqrt (puntos.Var () / puntos.Count ());
 
-          curva.Add (colaAux, puntos.Avg (), IC);
+          curva.Add (nodos_lan1_in + nodos_lan1_in, puntos.Avg (), IC);
           NS_LOG_DEBUG ("\n\n[======] PUNTO AÑADIDO A LA CURVA [======]\n\n");
           colaAux = colaAux + 10;
+          nodos_lan1_in = nodos_lan1_in + 5;
+          nodos_lan2_in = nodos_lan2_in;
         }
       grafica.AddDataset (curva);
 
       // Actualización de los valores
-      nodos_lan1_in = nodos_lan1_in + 3;
-      nodos_lan2_in = nodos_lan2_in + 3;
+      nodos_lan1_in = nodos_lan1_in + 20;
+      nodos_lan2_in = nodos_lan2_in + 10;
 
       colaAux = std::stod (t_cola);
     }

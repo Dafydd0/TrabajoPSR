@@ -29,6 +29,6 @@ Retardo::PaqueteEnviado (Ptr<const Packet> paquete)
 }
 
 double Retardo::GetRetardoMedio(void){
-  return retardo.Avg();
+  return retardo.Mean();
 }
 
