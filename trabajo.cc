@@ -787,8 +787,8 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad, Time stop_time, Tim
           curva.Add (nodos_lan1_in + nodos_lan2_in, puntos.Avg (), IC);
           NS_LOG_DEBUG ("\n\n[======] PUNTO AÑADIDO A LA CURVA [======]\n\n");
           //colaAux = colaAux + 10;
-          nodos_lan1_in = nodos_lan1_in + 1;
-          nodos_lan2_in = nodos_lan2_in + 1;
+          nodos_lan1_in = nodos_lan1_in + 5;
+          nodos_lan2_in = nodos_lan2_in + 5;
         }
       grafica.AddDataset (curva);
 
