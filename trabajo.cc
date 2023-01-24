@@ -90,7 +90,6 @@ void grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate 
 std::random_device rd;
 std::mt19937 gen (rd ());
 
-//ApplicationContainer c_app_lan2_udp;
 /**
  *  Función [main]
  * Es la esencial para el correcto funcionamiento del programa. Será la encargada de ejecutar el escenario que corresponda
@@ -101,7 +100,6 @@ main (int argc, char *argv[])
 {
 
   Time::SetResolution (Time::NS);
-  //Packet::EnablePrinting ();
 
   CommandLine cmd;
   int nFuentes1 = 3; // Número de Fuentes LAN 1
@@ -415,12 +413,12 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   OnOffHelper clientHelperTcpL1 ("ns3::TcpSocketFactory", Address ());
   clientHelperTcpL1.SetAttribute ("PacketSize", UintegerValue (1500)); //1500 por ejemplo
   clientHelperTcpL1.SetAttribute ("OnTime",
-                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.0003]"));
+                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]"));
   clientHelperTcpL1.SetAttribute ("OffTime",
-                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.01]"));
+                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.001]"));
   clientHelperTcpL1.SetAttribute (
       "DataRate",
-      StringValue ("5Mbps")); //Se establece el regimen binario a 64kbps
+      StringValue ("1Mbps")); //Se establece el regimen binario a 64kbps
 
   ApplicationContainer clientAppTcp; // Nodo admin
 
@@ -697,7 +695,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
 
   NS_LOG_DEBUG ("Aplicaciones en el contenedor de aplicaciones TCP: " << clientAppTcp.GetN ());
 
-  NS_LOG_DEBUG ("Aplicaciones en el nodo 2 L1: " << c_lan1.Get (2)->GetNApplications ());
+  //NS_LOG_DEBUG ("Aplicaciones en el nodo 2 L1: " << c_lan1.Get (2)->GetNApplications ());
 
   NS_LOG_DEBUG ("Creando objeto_retardo...");
   Ptr<NetDevice> nodo_transmisor =
