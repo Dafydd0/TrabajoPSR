@@ -1,5 +1,4 @@
 #include "retardo.h"
-//#include "etiquetaTiempo.h"
 #include "ns3/command-line.h"
 #include "ns3/node-container.h"
 #include "ns3/internet-stack-helper.h"
@@ -79,12 +78,16 @@ int random (int low, int high);
 Ptr<Node> PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate tasa);
 
 double escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
-                  DataRate capacidad_lan3, Time stop_time, Time t_sim, double intervalo,
-                  std::string t_cola, bool trafico);
+                  DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola,
+                  bool trafico);
 
 void grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
-              DataRate capacidad_lan3, Time stop_time, Time t_sim, double intervalo,
-              std::string t_cola, bool trafico);
+              DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola,
+              bool trafico);
+
+void grafica_perd (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
+                   DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola,
+                   bool trafico);
 
 //Para la generación de numeros aleatorios
 std::random_device rd;
@@ -112,34 +115,27 @@ main (int argc, char *argv[])
   DataRate cap_l3 ("100Mbps"); // Capacidad de transmisión (100Mb/s)
 
   Time tSim ("120s"); // Tiempo de Simulación
-  double intervalo = 0.060; // Intervalo entre paquetes
 
-  std::string tam_cola = "1p"; // Tamaño de  la cola
+  std::string tam_cola = "100p"; // Tamaño de  la cola
 
-  bool trafico = false;
-
-  //DataRate tasa_codec ("16kbps"); // Tasa de envío de la fuente en el estado on
+  bool trafico = true;
 
   cmd.AddValue ("nFuentes1", "Número de fuentes en la LAN 1", nFuentes1);
   cmd.AddValue ("nFuentes2", "Número de fuentes en la LAN 2", nFuentes2);
 
-  // cmd.AddValue ("tam_pkt", "Tamaño del paquete (Bytes)", tam_pkt);
   cmd.AddValue ("stopTime", "Tiempo de parada para las fuentes", stop_time);
   cmd.AddValue ("cap_l1", "Capacidad de transmision LAN 1", cap_l1);
   cmd.AddValue ("cap_l2", "Capacidad de transmision LAN 2", cap_l2);
   cmd.AddValue ("cap_l3", "Capacidad de transmision LAN 3", cap_l3);
 
   cmd.AddValue ("tSim", "Tiempo de simulación", tSim);
-  cmd.AddValue ("intervalo", "Intervalo entre paquetes de cada fuente", intervalo);
   cmd.AddValue ("tam_cola", "Tamaño de las colas", tam_cola);
   cmd.AddValue ("trafico", "Selecciona tipo de tráfico FALSE -> Audio | TRUE -> Audio + Video",
                 trafico);
-  //cmd.AddValue ("tasa_codec", "Tasa de envío de la fuente en el estado on", tasa_codec);
   cmd.Parse (argc, argv);
 
-  grafica (nFuentes1, nFuentes2, cap_l1, cap_l2, cap_l3, stop_time, tSim, intervalo, tam_cola,
-           trafico);
-  //grafica(nFuentes, cap_tx, tam_pkt, stop_time, tSim, tam_cola);
+  grafica (nFuentes1, nFuentes2, cap_l1, cap_l2, cap_l3, stop_time, tSim, tam_cola, trafico);
+  //grafica_perd (nFuentes1, nFuentes2, cap_l1, cap_l2, cap_l3, stop_time, tSim, tam_cola, trafico);
 }
 
 /**
@@ -173,31 +169,14 @@ PuenteHelper (NodeContainer nodosLan, NetDeviceContainer &d_nodosLan, DataRate t
 }
 
 /**
- *  Función [escenario1]
- * Al ejecutar esta función se realizarán las simulaciones correspondientes
- * al apartado 1 de la práctica en función de los parámetros y condiciones que se requieran.
+ *  Función [escenario]
+ * Al ejecutar esta función se realizarán las simulaciones en
+ * función de los parámetros y condiciones que se requieran.
 */
 double
 escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
-           DataRate capacidad_lan3, Time stop_time, Time t_sim, double intervalo,
-           std::string t_cola, bool trafico)
+           DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola, bool trafico)
 {
-
-  // Network topology
-  /*
-      L2 - R1 ----- R0 -  L1
-             \     /
-              \   /             
-               \ /
-                R2
-                |
-                L3
-*/
-
-  // Ptr<Node> n_servidor = CreateObject<Node> ();
-  // NodeContainer c_todos (n_servidor);
-  // c_todos.Add (c_fuentes);
-
   ////////////////////////////////////////////////////
   //Implementación del router
   ////////////////////////////////////////////////////
@@ -286,7 +265,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
       UdpServerHelper udpServerHelper (20000);
       ApplicationContainer c_server = udpServerHelper.Install (c_lan2.Get (i));
     }
-  // NS_LOG_DEBUG ("Aplicaciones en el nodo 3 de la lan2: " << c_lan2.Get (3)->GetNApplications ());
 
   NS_LOG_DEBUG ("UdpServers de la LAN 2 creados...");
 
@@ -398,8 +376,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   DataRate tasa_cliente;
   DataRate tasa_server;
 
-  //NS_LOG_DEBUG ("Atributos del objeto h_onoff modificados");
-
   ApplicationContainer c_app_lan1;
   ApplicationContainer c_app_lan2;
 
@@ -411,14 +387,12 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
                                           puerto_udp.Get ())); //El 2 es el Servidor UDP
 
   OnOffHelper clientHelperTcpL1 ("ns3::TcpSocketFactory", Address ());
-  clientHelperTcpL1.SetAttribute ("PacketSize", UintegerValue (1500)); //1500 por ejemplo
+  clientHelperTcpL1.SetAttribute ("PacketSize", UintegerValue (4096));
   clientHelperTcpL1.SetAttribute ("OnTime",
                                   StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]"));
   clientHelperTcpL1.SetAttribute ("OffTime",
-                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.001]"));
-  clientHelperTcpL1.SetAttribute (
-      "DataRate",
-      StringValue ("1Mbps")); //Se establece el regimen binario a 64kbps
+                                  StringValue ("ns3::ExponentialRandomVariable[Mean=0.01]"));
+  clientHelperTcpL1.SetAttribute ("DataRate", StringValue ("1Mbps"));
 
   ApplicationContainer clientAppTcp; // Nodo admin
 
@@ -449,13 +423,9 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
                             StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_cliente));
 
-      h_onoff.SetAttribute ("DataRate",
-                            DataRateValue (tasa_cliente)); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("DataRate", DataRateValue (tasa_cliente));
 
-      //  h_onoff.SetConstantRate (tasa_cliente, tam_paq_cliente);
-
-      h_onoff.SetAttribute ("StartTime",
-                            TimeValue (Time ("2s"))); //Se establece el tiempo de parada
+      h_onoff.SetAttribute ("StartTime", TimeValue (Time ("2s")));
       h_onoff.SetAttribute ("StopTime",
                             TimeValue (stop_time)); //Se establece el tiempo de parada
 
@@ -491,13 +461,9 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
 
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_cliente));
 
-      h_onoff.SetAttribute ("DataRate",
-                            DataRateValue (tasa_cliente)); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("DataRate", DataRateValue (tasa_cliente));
 
-      // h_onoff.SetConstantRate (tasa_cliente, tam_paq_cliente);
-
-      h_onoff.SetAttribute ("StartTime",
-                            TimeValue (Time ("2s"))); //Se establece el tiempo de parada
+      h_onoff.SetAttribute ("StartTime", TimeValue (Time ("2s")));
       h_onoff.SetAttribute ("StopTime",
                             TimeValue (stop_time)); //Se establece el tiempo de parada
 
@@ -547,20 +513,15 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
           h_onoff.SetAttribute ("OffTime",
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.002]")); //20ms
         }
-      //Según wireshark el ontime es de ~0.3ms y el offtime es de ~3ms
 
       h_onoff.SetAttribute ("OnTime",
                             StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
 
       h_onoff.SetAttribute ("PacketSize", UintegerValue (tam_paq_servidor));
 
-      h_onoff.SetAttribute ("DataRate",
-                            DataRateValue (tasa_server)); //Se establece el regimen binario a 8kbps
+      h_onoff.SetAttribute ("DataRate", DataRateValue (tasa_server));
 
-      // h_onoff.SetConstantRate (tasa_server, tam_paq_servidor);
-
-      h_onoff.SetAttribute ("StartTime",
-                            TimeValue (Time ("10s"))); //Se establece el tiempo de parada
+      h_onoff.SetAttribute ("StartTime", TimeValue (Time ("10s")));
       h_onoff.SetAttribute ("StopTime",
                             TimeValue (stop_time)); //Se establece el tiempo de parada
 
@@ -568,7 +529,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
       c_app_onoff_all_in_one_node.Add (OnOffAppTemp);
     }
 
-  //ApplicationContainer c_app_lan2_udp;
   //Añadimos al servidor UDP tantas fuentes OnOff como nodos en cada LAN
   for (int i = 1; i < nodos_lan2 + 1; i++)
     {
@@ -594,8 +554,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
                                 StringValue ("ns3::ExponentialRandomVariable[Mean=0.002]")); //20ms
         }
 
-      //Según wireshark el ontime es de ~0.3ms y el offtime es de ~3ms
-
       h_onoff.SetAttribute ("OnTime",
                             StringValue ("ns3::ExponentialRandomVariable[Mean=0.003]")); //3ms
 
@@ -603,9 +561,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
 
       h_onoff.SetAttribute ("DataRate", DataRateValue (tasa_server));
 
-      //  h_onoff.SetConstantRate (tasa_server, tam_paq_servidor);
-      h_onoff.SetAttribute ("StartTime",
-                            TimeValue (Time ("10s"))); //Se establece el tiempo de parada
+      h_onoff.SetAttribute ("StartTime", TimeValue (Time ("10s")));
       h_onoff.SetAttribute ("StopTime",
                             TimeValue (stop_time)); //Se establece el tiempo de parada
 
@@ -652,6 +608,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   //FIN CREACIÓN DE LA FUENTE ONOFF TCP
   ////////////////////////////////////////////////////
 
+  //Cambiamos el tamaño de las colas (por defecto a 100)
   QueueSizeValue tam_cola1;
   QueueSizeValue tam_cola2;
   QueueSizeValue tam_cola3;
@@ -687,15 +644,10 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   NS_LOG_INFO ("Tamaño de la cola del puerto del switch L2: " << tam_cola2.Get ());
   NS_LOG_INFO ("Tamaño de la cola del puerto del switch L3: " << tam_cola3.Get ());
 
-  // NS_LOG_DEBUG ("Aplicaciones en el nodo 3 de la lan2: " << c_lan2.Get (3)->GetNApplications ());
-  // NS_LOG_DEBUG ("Aplicaciones en el nodo 2 de la lan1: " << c_lan1.Get (2)->GetNApplications ());
-  NS_LOG_DEBUG ("Aplicaciones en el nodo servidor: " << c_lan3.Get (2)->GetNApplications ());
   NS_LOG_DEBUG ("Aplicaciones en el contenedor de aplicaciones del nodo servidor: "
                 << c_app_onoff_all_in_one_node.GetN ());
 
   NS_LOG_DEBUG ("Aplicaciones en el contenedor de aplicaciones TCP: " << clientAppTcp.GetN ());
-
-  //NS_LOG_DEBUG ("Aplicaciones en el nodo 2 L1: " << c_lan1.Get (2)->GetNApplications ());
 
   NS_LOG_DEBUG ("Creando objeto_retardo...");
   Ptr<NetDevice> nodo_transmisor =
@@ -709,8 +661,6 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   Simulator::Run ();
   NS_LOG_INFO ("--[Simulación completada]--");
 
-  //  int paquetesPerdidos = cola_DP->GetTotalDroppedPackets ();
-
   Ptr<Queue<Packet>> colaL1 = bridge_lan1->GetDevice (0)->GetObject<CsmaNetDevice> ()->GetQueue ();
   Ptr<Queue<Packet>> colaL2 = bridge_lan2->GetDevice (0)->GetObject<CsmaNetDevice> ()->GetQueue ();
   Ptr<Queue<Packet>> colaL3 = bridge_lan3->GetDevice (0)->GetObject<CsmaNetDevice> ()->GetQueue ();
@@ -722,6 +672,7 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   NS_LOG_INFO ("LAN 1: " << c_lan1.GetN () << ", LAN 2: " << c_lan2.GetN ()
                          << ", LAN 3: " << c_lan3.GetN ());
 
+  //Imprimimos el número de paquetes recibidos en cada puerto
   for (uint32_t i = 0; i < c_lan1.GetN (); i++)
     {
       Ptr<Queue<Packet>> cola_aux = bridge_lan1->GetDevice (i)
@@ -760,11 +711,44 @@ escenario (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate cap
   NS_LOG_INFO ("Llamando al método GetLost() del nodo servidor UDP: " << udpServer->GetLost ());
   NS_LOG_INFO ("Retardo medio: " << retardo_final << " ms");
 
+  Ptr<Queue<Packet>> cola_aux_l1 = bridge_lan1->GetDevice (0)
+                                       ->GetObject<CsmaNetDevice> ()
+                                       ->GetQueue ()
+                                       ->GetObject<DropTailQueue<Packet>> ();
+  Ptr<Queue<Packet>> cola_aux_l2 = bridge_lan1->GetDevice (0)
+                                       ->GetObject<CsmaNetDevice> ()
+                                       ->GetQueue ()
+                                       ->GetObject<DropTailQueue<Packet>> ();
+
+  double paq_rec_l1 = cola_aux_l1->GetTotalReceivedPackets ();
+  double paq_rec_l2 = cola_aux_l2->GetTotalReceivedPackets ();
+
+  double paq_rec_totales = paq_rec_l1 + paq_rec_l2;
+
+  double paq_perd_l1 = colaL1->GetTotalDroppedPackets ();
+  double paq_perd_l2 = colaL2->GetTotalDroppedPackets ();
+  double paq_perd_l3 = colaL3->GetTotalDroppedPackets ();
+
+  double total_paquetes_perdidos = paq_perd_l1 + paq_perd_l2 + paq_perd_l3;
+
+  int usuarios_totales = nodos_lan1 + nodos_lan2;
+
+  double porc_paq_perd = (total_paquetes_perdidos / (paq_rec_totales)) * 100;
+
   Simulator::Destroy ();
 
+  NS_LOG_INFO ("% paq perdidos: " << porc_paq_perd);
+
   return retardo_final;
+
+  //return porc_paq_perd;
 }
 
+/**
+ *  Función [random]
+ * Función que nos permite generar números
+ * aleatorios dentro de un determinado rango
+*/
 int
 random (int low, int high)
 {
@@ -772,23 +756,26 @@ random (int low, int high)
   return dist (gen);
 }
 
+/**
+ *  Función [grafica]
+ * Función que generará la gráfica de 
+ * retardo medio en función del número de fuentes
+*/
+
 void
 grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
-         DataRate capacidad_lan3, Time stop_time, Time t_sim, double intervalo, std::string t_cola,
-         bool trafico)
+         DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola, bool trafico)
 {
   int nodos_lan1_in = nodos_lan1;
   int nodos_lan2_in = nodos_lan2;
 
-  //int fuentes = nodos_lan1_in + nodos_lan2_in;
-  // int fuentes_iniciales = fuentes;
-  // double t_cola_aux = std::stod (t_cola);
-  // double t_cola_inicial = t_cola_aux;
-
   double colaAux = std::stod (t_cola);
 
   Gnuplot grafica;
-  grafica.SetTitle ("Retardo medio en función de las fuentes");
+  grafica.SetTitle (
+      "Tasa de los enlaces - LAN 1: " + std::to_string (capacidad_lan1.GetBitRate () * 0.0000010) +
+      "Mbps" + " - LAN 2: " + std::to_string (capacidad_lan2.GetBitRate () * 0.0000010) + "Mbps" +
+      " - LAN 3: " + std::to_string (capacidad_lan3.GetBitRate () * 0.0000010) + "Mbps");
   grafica.SetLegend ("Numero de fuentes [fuentes]", "Retardo medio [ms]");
 
   for (int i = 1; i < NUM_CURVAS; i++)
@@ -817,9 +804,88 @@ grafica (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capac
 
               // Actualizamos el punto actual con los datos obtenidos de la simulación
 
-              double dato = escenario (nodos_lan1_in, nodos_lan2_in, capacidad_lan1, capacidad_lan2,
-                                       capacidad_lan3, stop_time, t_sim, intervalo,
-                                       colaAux_toDouble_toString, trafico);
+              double dato =
+                  escenario (nodos_lan1_in, nodos_lan2_in, capacidad_lan1, capacidad_lan2,
+                             capacidad_lan3, stop_time, t_sim, colaAux_toDouble_toString, trafico);
+              NS_LOG_DEBUG ("\n\tvalor [" << iteracion << "]\t-> " << dato << "\n");
+              puntos.Update (dato);
+            }
+
+          NS_LOG_DEBUG ("Generación de puntos finalizada");
+
+          // Cálculo del intervalo de confianza
+          IC = T_STUDENT_8_95 * sqrt (puntos.Var () / puntos.Count ());
+
+          curva.Add (nodos_lan1_in + nodos_lan2_in, puntos.Avg (), IC);
+          NS_LOG_DEBUG ("\n\n[======] PUNTO AÑADIDO A LA CURVA [======]\n\n");
+          //colaAux = colaAux + 10;
+          nodos_lan1_in = nodos_lan1_in + 5;
+          nodos_lan2_in = nodos_lan2_in + 5;
+        }
+      grafica.AddDataset (curva);
+      colaAux = std::stod (t_cola);
+    }
+
+  // Generación de ficheros
+  NS_LOG_DEBUG ("Generando archivo 'grafica.plt'...");
+
+  std::ofstream fichero ("grafica.plt");
+  grafica.GenerateOutput (fichero);
+  fichero << "pause -1" << std::endl;
+  fichero.close ();
+}
+
+/**
+ *  Función [grafica_perd]
+ * Función que generará la gráfica de porcentaje
+ * de paquetes perdidos en función del número de fuentes
+*/
+
+void
+grafica_perd (int nodos_lan1, int nodos_lan2, DataRate capacidad_lan1, DataRate capacidad_lan2,
+              DataRate capacidad_lan3, Time stop_time, Time t_sim, std::string t_cola, bool trafico)
+{
+  int nodos_lan1_in = nodos_lan1;
+  int nodos_lan2_in = nodos_lan2;
+
+  double colaAux = std::stod (t_cola);
+
+  Gnuplot grafica;
+  grafica.SetTitle (
+      "Tasa de los enlaces - LAN 1: " + std::to_string (capacidad_lan1.GetBitRate () * 0.0000010) +
+      "Mbps" + " - LAN 2: " + std::to_string (capacidad_lan2.GetBitRate () * 0.0000010) + "Mbps" +
+      " - LAN 3: " + std::to_string (capacidad_lan3.GetBitRate () * 0.0000010) + "Mbps");
+  grafica.SetLegend ("Numero de fuentes [fuentes]", "Porcentaje de paquetes perdidos [%]");
+
+  for (int i = 1; i < NUM_CURVAS; i++)
+    {
+      Average<double> puntos;
+      double IC = 0.0;
+      Gnuplot2dDataset curva ("Número inicial de fuentes: " +
+                              std::to_string (nodos_lan1_in + nodos_lan2_in));
+      curva.SetStyle (Gnuplot2dDataset::LINES_POINTS);
+      curva.SetErrorBars (Gnuplot2dDataset::Y);
+
+      for (uint32_t fac = 0; fac < NUM_PUNTOS; fac += 1)
+        {
+          // ABSCISAS
+          for (uint32_t iteracion = 0; iteracion < ITERACIONES; iteracion++)
+            {
+              NS_LOG_DEBUG ("Generando el punto [" << iteracion << "] ...");
+              std::string colaAuxString = std::to_string (
+                  colaAux); //Vamos a manejar la cola              // Procedemos a la simulación
+
+              //Convertir la cola de string a double
+              double colaAux_toDouble = std::stod (colaAuxString);
+              std::stringstream temp;
+              temp << colaAux_toDouble << "p";
+              std::string colaAux_toDouble_toString = temp.str ();
+
+              // Actualizamos el punto actual con los datos obtenidos de la simulación
+
+              double dato =
+                  escenario (nodos_lan1_in, nodos_lan2_in, capacidad_lan1, capacidad_lan2,
+                             capacidad_lan3, stop_time, t_sim, colaAux_toDouble_toString, trafico);
               NS_LOG_DEBUG ("\n\tvalor [" << iteracion << "]\t-> " << dato << "\n");
               puntos.Update (dato);
             }
